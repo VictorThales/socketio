@@ -3,42 +3,36 @@ const { createServer } = require('http');
 
 let io;
 
-const handler = (req, res) => {
+module.exports = (req, res) => {
     if (!io) {
-        const server = createServer((req, res) => {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ "websocket test": "1.0" }));
+        const httpServer = createServer();
+
+        io = new Server(httpServer, {
+            cors: {
+                origin: '*', // Altere para restringir origens em produção
+                methods: ['GET', 'POST']
+            }
         });
 
-        io = new Server(server);
-
-        // Configuração do Socket.IO
         io.on('connection', (socket) => {
-            console.log('Usuário conectado!', socket.id);
+            console.log('Usuário conectado:', socket.id);
 
-            socket.on('disconnect', (reason) => {
-                console.log('Usuário desconectado!', socket.id);
+            socket.on('message', (data) => {
+                console.log('Mensagem recebida:', data);
+                socket.emit('response', `Servidor recebeu: ${data}`);
             });
 
-            socket.on('set_username', (username) => {
-                socket.data.username = username;
-            });
-
-            socket.on('message', (text) => {
-                io.emit('receive_message', {
-                    text,
-                    authorId: socket.id,
-                    author: socket.data.username || 'Anônimo',
-                });
+            socket.on('disconnect', () => {
+                console.log('Usuário desconectado:', socket.id);
             });
         });
 
-        server.listen(3000, () => {
-            console.log('Socket.IO Server rodando na porta 3000');
+        res.socket.server.on('upgrade', (request, socket, head) => {
+            httpServer.emit('upgrade', request, socket, head);
         });
+
+        res.socket.server.io = io;
     }
 
-    res.end(); // Responde à função serverless da Vercel
+    res.end(); // Necessário para finalizar a requisição HTTP
 };
-
-module.exports = handler;
